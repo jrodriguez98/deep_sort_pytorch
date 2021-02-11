@@ -8,11 +8,15 @@ import torch
 import torch.backends.cudnn as cudnn
 import torchvision
 
-from model import Net
+from utils import calculate_mean_std_per_channel
+from original_model import Net
+
 
 parser = argparse.ArgumentParser(description="Train on market1501")
-parser.add_argument("--data-dir",default='data',type=str)
+parser.add_argument("--data-dir",default='Market-1501-v15.09.15',type=str)
 parser.add_argument("--no-cuda",action="store_true")
+parser.add_argument("--mean-std", action="store_true")
+parser.add_argument("--split-valid", action="store_true")
 parser.add_argument("--gpu-id",default=0,type=int)
 parser.add_argument("--lr",default=0.1, type=float)
 parser.add_argument("--interval",'-i',default=20,type=int)
@@ -21,32 +25,40 @@ args = parser.parse_args()
 
 # device
 device = "cuda:{}".format(args.gpu_id) if torch.cuda.is_available() and not args.no_cuda else "cpu"
+
 if torch.cuda.is_available() and not args.no_cuda:
     cudnn.benchmark = True
 
 # data loading
 root = args.data_dir
-train_dir = os.path.join(root,"train")
-test_dir = os.path.join(root,"test")
+train_dir = os.path.join(root, "train")
+test_dir = os.path.join(root, "test")
+
+if args.mean_std:
+    mean_channels, std_channels = calculate_mean_std_per_channel(train_dir, batch_size=1)
+else:
+    mean_channels, std_channels = [0.3912, 0.3711, 0.3434], [0.1486, 0.1453, 0.1476]
+
+
 transform_train = torchvision.transforms.Compose([
-    torchvision.transforms.RandomCrop((128,64),padding=4),
-    torchvision.transforms.RandomHorizontalFlip(),
     torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    torchvision.transforms.Normalize([0.3912, 0.3711, 0.3434], [0.1486, 0.1453, 0.1476])
 ])
 transform_test = torchvision.transforms.Compose([
-    torchvision.transforms.Resize((128,64)),
     torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    torchvision.transforms.Normalize([0.3912, 0.3711, 0.3434], [0.1486, 0.1453, 0.1476])
 ])
+
 trainloader = torch.utils.data.DataLoader(
     torchvision.datasets.ImageFolder(train_dir, transform=transform_train),
-    batch_size=64,shuffle=True
+    batch_size = 128, shuffle = True
 )
 testloader = torch.utils.data.DataLoader(
     torchvision.datasets.ImageFolder(test_dir, transform=transform_test),
-    batch_size=64,shuffle=True
+    batch_size = 128
 )
+
+
 num_classes = max(len(trainloader.dataset.classes), len(testloader.dataset.classes))
 
 # net definition
@@ -65,8 +77,10 @@ net.to(device)
 
 # loss and optimizer
 criterion = torch.nn.CrossEntropyLoss()
+second_criterion = torch.nn.TripletMarginLoss()
 optimizer = torch.optim.SGD(net.parameters(), args.lr, momentum=0.9, weight_decay=5e-4)
 best_acc = 0.
+
 
 # train function for each epoch
 def train(epoch):
@@ -74,6 +88,8 @@ def train(epoch):
     net.train()
     training_loss = 0.
     train_loss = 0.
+    """triplet_training_loss = 0.
+    triplet_train_loss = 0."""
     correct = 0
     total = 0
     interval = args.interval
@@ -83,7 +99,6 @@ def train(epoch):
         inputs,labels = inputs.to(device),labels.to(device)
         outputs = net(inputs)
         loss = criterion(outputs, labels)
-
         # backward
         optimizer.zero_grad()
         loss.backward()
@@ -92,13 +107,15 @@ def train(epoch):
         # accumurating
         training_loss += loss.item()
         train_loss += loss.item()
+        """triplet_training_loss += triplet_loss.item()
+        triplet_train_loss += triplet_loss.item()"""
         correct += outputs.max(dim=1)[1].eq(labels).sum().item()
         total += labels.size(0)
 
         # print 
         if (idx+1)%interval == 0:
             end = time.time()
-            print("[progress:{:.1f}%]time:{:.2f}s Loss:{:.5f} Correct:{}/{} Acc:{:.3f}%".format(
+            print("[progress:{:.1f}%]time:{:.2f}s Cross Entropy Loss:{:.5f} Correct:{}/{} Acc:{:.3f}%".format(
                 100.*(idx+1)/len(trainloader), end-start, training_loss/interval, correct, total, 100.*correct/total
             ))
             training_loss = 0.
