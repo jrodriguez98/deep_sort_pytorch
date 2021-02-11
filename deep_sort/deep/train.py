@@ -8,7 +8,7 @@ import torch
 import torch.backends.cudnn as cudnn
 import torchvision
 
-from utils import calculate_mean_std_per_channel
+from utils import calculate_mean_std_per_channel, get_train_valid_loader, test_loader
 from original_model import Net
 
 
@@ -34,56 +34,17 @@ root = args.data_dir
 train_dir = os.path.join(root, "train")
 test_dir = os.path.join(root, "test")
 
-if args.mean_std:
-    mean_channels, std_channels = calculate_mean_std_per_channel(train_dir, batch_size=1)
-else:
-    mean_channels, std_channels = [0.3912, 0.3711, 0.3434], [0.1486, 0.1453, 0.1476]
-
-
-transform_train = torchvision.transforms.Compose([
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize([0.3912, 0.3711, 0.3434], [0.1486, 0.1453, 0.1476])
-])
-transform_test = torchvision.transforms.Compose([
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize([0.3912, 0.3711, 0.3434], [0.1486, 0.1453, 0.1476])
-])
-
-trainloader = torch.utils.data.DataLoader(
-    torchvision.datasets.ImageFolder(train_dir, transform=transform_train),
-    batch_size = 128, shuffle = True
-)
-testloader = torch.utils.data.DataLoader(
-    torchvision.datasets.ImageFolder(test_dir, transform=transform_test),
-    batch_size = 128
-)
-
-
-num_classes = max(len(trainloader.dataset.classes), len(testloader.dataset.classes))
 
 # net definition
 start_epoch = 0
-net = Net(num_classes=num_classes)
-if args.resume:
-    assert os.path.isfile("./checkpoint/ckpt.t7"), "Error: no checkpoint file found!"
-    print('Loading from checkpoint/ckpt.t7')
-    checkpoint = torch.load("./checkpoint/ckpt.t7")
-    # import ipdb; ipdb.set_trace()
-    net_dict = checkpoint['net_dict']
-    net.load_state_dict(net_dict)
-    best_acc = checkpoint['acc']
-    start_epoch = checkpoint['epoch']
-net.to(device)
 
 # loss and optimizer
-criterion = torch.nn.CrossEntropyLoss()
-second_criterion = torch.nn.TripletMarginLoss()
-optimizer = torch.optim.SGD(net.parameters(), args.lr, momentum=0.9, weight_decay=5e-4)
+
 best_acc = 0.
 
 
 # train function for each epoch
-def train(epoch):
+def train(net, trainloader, criterion, epoch):
     print("\nEpoch : %d"%(epoch+1))
     net.train()
     training_loss = 0.
@@ -123,8 +84,49 @@ def train(epoch):
     
     return train_loss/len(trainloader), 1.- correct/total
 
-def test(epoch):
+
+def validation(net, validloader, criterion, epoch):
     global best_acc
+    net.eval()
+    valid_loss = 0.
+    correct = 0
+    total = 0
+    start = time.time()
+    with torch.no_grad():
+        for idx, (inputs, labels) in enumerate(validloader):
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = net(inputs)
+            loss = criterion(outputs, labels)
+
+            valid_loss += loss.item()
+            correct += outputs.max(dim=1)[1].eq(labels).sum().item()
+            total += labels.size(0)
+
+        print("Validating ...")
+        end = time.time()
+        print("[progress:{:.1f}%]time:{:.2f}s Loss:{:.5f} Correct:{}/{} Acc:{:.3f}%".format(
+            100. * (idx + 1) / len(validloader), end - start, valid_loss / len(validloader), correct, total,
+            100. * correct / total
+        ))
+
+    # saving checkpoint
+    acc = 100.*correct/total
+    if acc > best_acc:
+        best_acc = acc
+        print("Saving parameters to checkpoint/ckpt.t7")
+        checkpoint = {
+            'net_dict':net.state_dict(),
+            'acc':acc,
+            'epoch':epoch,
+        }
+        if not os.path.isdir('checkpoint'):
+            os.mkdir('checkpoint')
+        torch.save(checkpoint, './checkpoint/ckpt.t7')
+
+    return valid_loss / len(validloader), 1. - correct / total
+
+def test(net, testloader, criterion):
+    #global best_acc
     net.eval()
     test_loss = 0.
     correct = 0
@@ -146,7 +148,7 @@ def test(epoch):
                 100.*(idx+1)/len(testloader), end-start, test_loss/len(testloader), correct, total, 100.*correct/total
             ))
 
-    # saving checkpoint
+    """# saving checkpoint
     acc = 100.*correct/total
     if acc > best_acc:
         best_acc = acc
@@ -158,9 +160,9 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(checkpoint, './checkpoint/ckpt.t7')
+        torch.save(checkpoint, './checkpoint/ckpt.t7')"""
 
-    return test_loss/len(testloader), 1.- correct/total
+    return test_loss/len(testloader), 1. - correct/total
 
 # plot figure
 x_epoch = []
@@ -193,11 +195,56 @@ def lr_decay():
         lr = params['lr']
         print("Learning rate adjusted to {}".format(lr))
 
+def create_net(num_classes):
+    net = Net(num_classes=num_classes)
+
+    if args.resume:
+        assert os.path.isfile("./checkpoint/ckpt.t7"), "Error: no checkpoint file found!"
+        print('Loading from checkpoint/ckpt.t7')
+        checkpoint = torch.load("./checkpoint/ckpt.t7")
+        # import ipdb; ipdb.set_trace()
+        net_dict = checkpoint['net_dict']
+        net.load_state_dict(net_dict)
+        best_acc = checkpoint['acc']
+        start_epoch = checkpoint['epoch']
+
+    net.to(device)
+
+    return net
+
 def main():
+    if args.mean_std:
+        normalize = calculate_mean_std_per_channel(train_dir, 1)
+    else:
+        normalize = None
+
+    trainloader, validloader = get_train_valid_loader(
+        train_dir,
+        batch_size=128,
+        augment=False,
+        random_seed=1234,
+        valid_size=0.05,
+        shuffle=True,
+        normalize=normalize
+    )
+    num_classes = len(trainloader.dataset.classes)
+
+    testloader = test_loader(test_dir, batch_size=1, normalize=normalize)
+
+    # Net definition
+    net = create_net(num_classes)
+    criterion = torch.nn.CrossEntropyLoss()
+    #second_criterion = torch.nn.TripletMarginLoss()
+
+    global optimizer
+    optimizer = torch.optim.SGD(net.parameters(), args.lr, momentum=0.9, weight_decay=5e-4)
+
+
     for epoch in range(start_epoch, start_epoch+40):
-        train_loss, train_err = train(epoch)
-        test_loss, test_err = test(epoch)
-        draw_curve(epoch, train_loss, train_err, test_loss, test_err)
+        train_loss, train_err = train(net, trainloader, criterion, epoch)
+        valid_loss, valid_err = validation(net, validloader, criterion, epoch)
+        test_loss, test_err = test(net, testloader, criterion)
+        draw_curve(epoch, train_loss, train_err, valid_loss, valid_err)
         if (epoch+1)%20==0:
             lr_decay()
 
