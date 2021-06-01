@@ -4,7 +4,7 @@ import torchvision
 
 import argparse
 import os
-
+from loader import CustomFolder
 from model import Net
 
 parser = argparse.ArgumentParser(description="Train on market1501")
@@ -20,24 +20,24 @@ if torch.cuda.is_available() and not args.no_cuda:
 
 # data loader
 root = args.data_dir
-query_dir = os.path.join(root,"query")
-gallery_dir = os.path.join(root,"gallery")
+query_dir = os.path.join(root, "query")
+gallery_dir = os.path.join(root, "gallery")
 transform = torchvision.transforms.Compose([
     torchvision.transforms.Resize((128,64)),
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 queryloader = torch.utils.data.DataLoader(
-    torchvision.datasets.ImageFolder(query_dir, transform=transform),
+    CustomFolder(query_dir, transform=transform),
     batch_size=64, shuffle=False
 )
 galleryloader = torch.utils.data.DataLoader(
-    torchvision.datasets.ImageFolder(gallery_dir, transform=transform),
+    CustomFolder(gallery_dir, transform=transform),
     batch_size=64, shuffle=False
 )
 
 # net definition
-net = Net(reid=True)
+net = Net(num_classes=752, reid=True)
 assert os.path.isfile("./checkpoint/ckpt.t7"), "Error: no checkpoint file found!"
 print('Loading from checkpoint/ckpt.t7')
 checkpoint = torch.load("./checkpoint/ckpt.t7")
@@ -57,15 +57,17 @@ with torch.no_grad():
         inputs = inputs.to(device)
         features = net(inputs).cpu()
         query_features = torch.cat((query_features, features), dim=0)
+        print(labels)
         query_labels = torch.cat((query_labels, labels))
 
     for idx,(inputs,labels) in enumerate(galleryloader):
         inputs = inputs.to(device)
         features = net(inputs).cpu()
         gallery_features = torch.cat((gallery_features, features), dim=0)
+        print(labels)
         gallery_labels = torch.cat((gallery_labels, labels))
 
-gallery_labels -= 2
+#gallery_labels -= 2
 
 # save features
 features = {
@@ -74,4 +76,6 @@ features = {
     "gf": gallery_features,
     "gl": gallery_labels
 }
-torch.save(features,"features.pth")
+
+print("Guardando features")
+torch.save(features, "features.pth")
