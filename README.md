@@ -116,7 +116,7 @@ The original model used in paper is in original_model.py, and its parameter here
 
 To train the model, first you need download [Market1501](http://www.liangzheng.com.cn/Project/project_reid.html) dataset or [Mars](http://www.liangzheng.com.cn/Project/project_mars.html) dataset.  
 
-Then you can try [train.py](deep_sort/deep/train.py) to train your own parameter and evaluate it using [test.py](deep_sort/deep/test.py) and [evaluate.py](deep_sort/deep/evalute.py).
+Then you can try [train.py](deep_sort/deep/train.py) to train your own parameter and evaluate it using [test.py](deep_sort/deep/test_model.py) and [evaluate.py](deep_sort/deep/evalute.py).
 ![train.jpg](deep_sort/deep/train.jpg)
 
 ## Demo videos and images

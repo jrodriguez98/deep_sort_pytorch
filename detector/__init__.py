@@ -1,4 +1,5 @@
 from .YOLOv3 import YOLOv3
+from .faster_rcnn import tensorflow_detection_tf2, load_model_in_gpu
 
 
 __all__ = ['build_detector']

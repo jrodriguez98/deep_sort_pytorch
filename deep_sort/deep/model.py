@@ -46,52 +46,61 @@ def make_layers(c_in,c_out,repeat_times, is_downsample=False):
     return nn.Sequential(*blocks)
 
 class Net(nn.Module):
-    def __init__(self, num_classes=751 ,reid=False):
-        super(Net,self).__init__()
-        # 3 128 64
+    def __init__(self, num_classes=34, reid=False):
+        super(Net, self).__init__()
+        # 3 128 128
         self.conv = nn.Sequential(
-            nn.Conv2d(3,64,3,stride=1,padding=1),
+            nn.Conv2d(3, 64, 3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True),
             # nn.Conv2d(32,32,3,stride=1,padding=1),
             # nn.BatchNorm2d(32),
             # nn.ReLU(inplace=True),
-            nn.MaxPool2d(3,2,padding=1),
+            nn.MaxPool2d(3, 2, padding=1),
         )
         # 32 64 32
-        self.layer1 = make_layers(64,64,2,False)
+        self.layer1 = make_layers(64, 64, 2, False)
         # 32 64 32
-        self.layer2 = make_layers(64,128,2,True)
+        self.layer2 = make_layers(64, 128, 2, True)
         # 64 32 16
-        self.layer3 = make_layers(128,256,2,True)
+        self.layer3 = make_layers(128, 256, 2, True)
         # 128 16 8
-        self.layer4 = make_layers(256,512,2,True)
+        self.layer4 = make_layers(256, 512, 2, True)
         # 256 8 4
-        self.avgpool = nn.AvgPool2d((8,4),1)
-        # 256 1 1 
+        self.avgpool = nn.AvgPool2d((8, 4), 1)
+        # 256 1 1
         self.reid = reid
         self.classifier = nn.Sequential(
-            nn.Linear(512, 256),
+            nn.Linear(2560, 256),
             nn.BatchNorm1d(256),
             nn.ReLU(inplace=True),
             nn.Dropout(),
             nn.Linear(256, num_classes),
         )
-    
+
     def forward(self, x):
+        #print(f"INTRO: {x.shape}")
         x = self.conv(x)
+        #print(f"post CONV: {x.shape}")
         x = self.layer1(x)
+        #print(f"post LAYER 1: {x.shape}")
         x = self.layer2(x)
+        #print(f"post LAYER 2: {x.shape}")
         x = self.layer3(x)
+        #print(f"post LAYER 3: {x.shape}")
         x = self.layer4(x)
+        #print(f"post LAYER 4: {x.shape}")
         x = self.avgpool(x)
-        x = x.view(x.size(0),-1)
+        #print(f"post AVGPOOL: {x.shape}")
+        x = x.view(x.size(0), -1)
+        #print(f"post VIEW: {x.shape}")
         # B x 128
         if self.reid:
-            x = x.div(x.norm(p=2,dim=1,keepdim=True))
+            x = x.div(x.norm(p=2, dim=1, keepdim=True))
             return x
         # classifier
         x = self.classifier(x)
+        #print(f"post CLASSIFIER: {x.shape}")
         return x
 
 

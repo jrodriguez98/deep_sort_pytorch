@@ -1,0 +1,2 @@
+faster_rcnn:
+  PATH: "./detector/faster_rcnn/models/17"

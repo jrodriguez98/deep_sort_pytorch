@@ -11,3 +11,11 @@ build/
 *.avi
 *.so
 *.txt
+/datasets/
+/features/
+/training_results/
+/training_results_old/
+/features_padded.pth
+/features_market.pth
+/detector/faster_rcnn/models/17/
+/.idea/

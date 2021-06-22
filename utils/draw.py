@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 
+from .utils_rcnn import VECTORES_INTERES, COLORS
+
 palette = (2 ** 11 - 1, 2 ** 15 - 1, 2 ** 20 - 1)
 
 
@@ -28,6 +30,26 @@ def draw_boxes(img, bbox, identities=None, offset=(0,0)):
         cv2.rectangle(img,(x1, y1),(x1+t_size[0]+3,y1+t_size[1]+4), color,-1)
         cv2.putText(img,label,(x1,y1+t_size[1]+4), cv2.FONT_HERSHEY_PLAIN, 2, [255,255,255], 2)
     return img
+
+
+def custom_draw(image_np, trackers):
+
+    for d in trackers:
+        coord = d[:4].astype(np.int32)
+        obj_id = int(d[4])
+        class_conf = float(d[5])
+        class_id = int(d[6])
+
+        # display the prediction
+        label = f"{VECTORES_INTERES[class_id - 1]}"
+        class_conf = f"{class_conf:.3f}"
+
+        cv2.rectangle(image_np, (coord[0], coord[1]), (coord[2], coord[3]), COLORS[obj_id % 50], 2)  # d[5]-1]
+        y = coord[1] - 15 if coord[1] - 15 > 15 else coord[1] + 15
+        text = "ID: " + str(obj_id) + " CONF: " + class_conf + " CLASS: " + label
+        cv2.putText(image_np, text, (coord[0], y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS[obj_id % 50], 2)  # d[5]-1
+
+    return image_np
 
 
 

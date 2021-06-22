@@ -4,7 +4,7 @@ import numpy as np
 import cv2
 import logging
 
-from .model import Net
+from .model_sq import Net
 
 class Extractor(object):
     def __init__(self, model_path, use_cuda=True):
@@ -15,7 +15,7 @@ class Extractor(object):
         logger = logging.getLogger("root.tracker")
         logger.info("Loading weights from {}... Done!".format(model_path))
         self.net.to(self.device)
-        self.size = (64, 128)
+        self.size = (128, 128)
         self.norm = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
