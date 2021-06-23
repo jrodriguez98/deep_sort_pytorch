@@ -7,7 +7,7 @@ import warnings
 import numpy as np
 
 from detector import build_detector
-from deep_sort import build_tracker
+from deep_sort import build_deepsort_tracker
 from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.log import get_logger
@@ -35,7 +35,7 @@ class VideoTracker(object):
         else:
             self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
+        self.deepsort = build_deepsort_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
 
     def __enter__(self):

@@ -19,3 +19,4 @@ build/
 /features_market.pth
 /detector/faster_rcnn/models/17/
 /.idea/
+/data/
