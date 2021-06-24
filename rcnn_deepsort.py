@@ -9,7 +9,8 @@ from PIL import Image
 
 from detector import tensorflow_detection_tf2, load_model_in_gpu
 from deep_sort import build_deepsort_tracker
-from utils.draw import draw_boxes, custom_draw
+from custom_sort import build_sort_tracker
+from utils.draw import custom_draw
 from utils.parser import get_config
 from utils.log import get_logger
 from utils.io import write_results
@@ -37,7 +38,16 @@ class VideoTracker(object):
         else:
             self.vdo = cv2.VideoCapture()
         self.detect_fn = load_model_in_gpu(cfg.faster_rcnn.PATH)
-        self.deepsort = build_deepsort_tracker()
+
+        self.tracker_type = None
+        if "DEEPSORT" in cfg.keys():
+            self.mot_tracker = build_deepsort_tracker(cfg.DEEPSORT)
+            self.tracker_type = "DEEPSORT"
+        elif "SORT" in cfg.keys():
+            self.mot_tracker = build_sort_tracker(cfg.SORT)
+            self.tracker_type = "SORT"
+        else:
+            raise ValueError("MOT TRACKER HAS NOT BEEN GIVEN OR IS NOT SUPPORTED")
 
     def __enter__(self):
         if self.args.cam != -1:
@@ -99,23 +109,26 @@ class VideoTracker(object):
                 detect_fn=self.detect_fn
             )
 
-            bbox_xywh, cls_conf, cls_ids = get_deep_format(np.copy(detection_result["objects_detected"]))
+            objects_detected = np.array(detection_result["objects_detected"], dtype=np.float)
 
-            # bbox dilation just in case bbox too small, delete this line if using a better pedestrian detector
-            #bbox_xywh[:, 3:] *= 1.2
+            if self.tracker_type == "DEEPSORT":
+                bbox_xywh, cls_conf, cls_ids = get_deep_format(np.copy(objects_detected))
 
-            # do tracking
-            trackers_deep = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-            ori_im = custom_draw(ori_im, trackers_deep)
+                # do tracking
+                trackers = self.mot_tracker.update(bbox_xywh, cls_conf, cls_ids, im)
+            elif self.tracker_type == "SORT":
+                trackers = self.mot_tracker.update(objects_detected)
+
+            ori_im = custom_draw(ori_im, trackers)
 
             # draw boxes for visualization
-            if len(trackers_deep) > 0:
+            if len(trackers) > 0:
                 bbox_tlwh = []
-                bbox_xyxy = trackers_deep[:, :4].astype(np.int32)
-                identities = trackers_deep[:, 4].astype(np.int32)
+                bbox_xyxy = trackers[:, :4].astype(np.int32)
+                identities = trackers[:, 4].astype(np.int32)
 
                 for bb_xyxy in bbox_xyxy:
-                    bbox_tlwh.append(self.deepsort._xyxy_to_tlwh(bb_xyxy))
+                    bbox_tlwh.append(self.mot_tracker._xyxy_to_tlwh(bb_xyxy))
 
                 results.append((idx_frame - 1, bbox_tlwh, identities))
 
@@ -133,14 +146,14 @@ class VideoTracker(object):
 
             # logging
             self.logger.info("time: {:.03f}s, fps: {:.03f}, detection numbers: {}, tracking numbers: {}" \
-                             .format(end - start, 1 / (end - start), bbox_xywh.shape[0], len(trackers_deep)))
+                             .format(end - start, 1 / (end - start), objects_detected.shape[0], len(trackers)))
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", type=str, default="./videos/VBS3_20210318_seguimiento_2.mp4")
     parser.add_argument("--config_detection", type=str, default="./configs/faster_rcnn.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
+    parser.add_argument("--config_tracker", type=str, default="./configs/deep_sort.yaml")
     # parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display", action="store_true")
     parser.add_argument("--frame_interval", type=int, default=1)
@@ -156,9 +169,8 @@ if __name__ == "__main__":
     args = parse_args()
     cfg = get_config()
     cfg.merge_from_file(args.config_detection)
-    cfg.merge_from_file(args.config_deepsort)
-    print("CONFIG")
-    print(cfg)
-    print(cfg.faster_rcnn.PATH)
+    cfg.merge_from_file(args.config_tracker)
+
+
     with VideoTracker(cfg, args, video_path=args.video_path) as vdo_trk:
         vdo_trk.run()
