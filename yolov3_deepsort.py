@@ -15,11 +15,12 @@ from utils.io import write_results
 
 
 class VideoTracker(object):
-    def __init__(self, cfg, args, video_path):
+    def __init__(self, cfg, args, video_path, result_filename=None):
         self.cfg = cfg
         self.args = args
         self.video_path = video_path
         self.logger = get_logger("root")
+        self.save_results_path = result_filename
 
         use_cuda = args.use_cuda and torch.cuda.is_available()
         if not use_cuda:
@@ -57,7 +58,8 @@ class VideoTracker(object):
 
             # path of saved video and results
             self.save_video_path = os.path.join(self.args.save_path, "results.avi")
-            self.save_results_path = os.path.join(self.args.save_path, "results.txt")
+            if self.save_results_path is None:
+                self.save_results_path = os.path.join(self.args.save_path, "results.txt")
 
             # create video writer
             fourcc = cv2.VideoWriter_fourcc(*'MJPG')
@@ -131,7 +133,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("VIDEO_PATH", type=str)
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
+    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort_distorn.yaml")
     # parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display", action="store_true")
     parser.add_argument("--frame_interval", type=int, default=1)

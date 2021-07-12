@@ -18,11 +18,13 @@ from utils.utils_rcnn import VECTORES_INTERES, CATEGORIES, get_deep_format
 
 
 class VideoTracker(object):
-    def __init__(self, cfg, args, video_path):
+    def __init__(self, cfg, args, video_path, result_filename=None):
         self.cfg = cfg
         self.args = args
         self.video_path = video_path
         self.logger = get_logger("root")
+        self.save_results_path = result_filename
+        self.fps = args.fps
 
         use_cuda = args.use_cuda and torch.cuda.is_available()
         if not use_cuda:
@@ -41,9 +43,13 @@ class VideoTracker(object):
 
         self.tracker_type = None
         if "DEEPSORT" in cfg.keys():
+            print("DEEPSORT CONFIG")
+            print(cfg.DEEPSORT)
             self.mot_tracker = build_deepsort_tracker(cfg.DEEPSORT)
             self.tracker_type = "DEEPSORT"
         elif "SORT" in cfg.keys():
+            print("SORT CONFIG")
+            print(cfg.SORT)
             self.mot_tracker = build_sort_tracker(cfg.SORT)
             self.tracker_type = "SORT"
         else:
@@ -67,11 +73,16 @@ class VideoTracker(object):
             os.makedirs(self.args.save_path, exist_ok=True)
 
             # path of saved video and results
-            self.save_video_path = os.path.join(self.args.save_path, "results.avi")
-            self.save_results_path = os.path.join(self.args.save_path, "results.txt")
+            self.save_video_path = self.save_results_path[:-4] + ".mp4"
+            if self.save_results_path is None:
+                self.save_results_path = os.path.join(self.args.save_path, "results.txt")
+                self.save_video_path = os.path.join(self.args.save_path, "results.mp4")
+
+
+            print(f"RESULTS FILE: {self.save_results_path}")
 
             # create video writer
-            fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+            fourcc = cv2.VideoWriter_fourcc(*'MP4V')
             self.writer = cv2.VideoWriter(self.save_video_path, fourcc, 20, (self.im_width, self.im_height))
 
             # logging
@@ -144,19 +155,21 @@ class VideoTracker(object):
             # save results
             write_results(self.save_results_path, results, 'mot')
 
-            # logging
-            self.logger.info("time: {:.03f}s, fps: {:.03f}, detection numbers: {}, tracking numbers: {}" \
-                             .format(end - start, 1 / (end - start), objects_detected.shape[0], len(trackers)))
+            if idx_frame%200 == 0:
+                # logging
+                self.logger.info("time: {:.03f}s, fps: {:.03f}, detection numbers: {}, tracking numbers: {}, idx_frame: {}" \
+                                 .format(end - start, 1 / (end - start), objects_detected.shape[0], len(trackers), idx_frame))
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", type=str, default="./videos/VBS3_20210318_seguimiento_2.mp4")
-    parser.add_argument("--config_detection", type=str, default="./configs/faster_rcnn.yaml")
-    parser.add_argument("--config_tracker", type=str, default="./configs/deep_sort.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/faster_rcnn_17.yaml")
+    parser.add_argument("--config_tracker", type=str, default="./configs/deep_sort_distorn.yaml")
     # parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display", action="store_true")
     parser.add_argument("--frame_interval", type=int, default=1)
+    parser.add_argument("--fps", type=int, default=30)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
     parser.add_argument("--save_path", type=str, default="./output/")

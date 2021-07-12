@@ -8,9 +8,7 @@ def calculate_topk(qf, ql, gf, gl, k):
     print("--------------------------")
     sim = scores.topk(k+1, dim=1)[0][:, 1:]
     res = scores.topk(k+1, dim=1)[1][:, 1:]  # Quitamos el primero ya que es la misma imagen
-    print(f"SHAPE SIM: {sim.shape}")
-    print(f"SHAPE RES: {res.shape}")
-    print(f"Resultados top {k}")
+
 
     topkcorrect = 0
     for idx, (cls, topk) in enumerate(zip(ql, gl[res])):
@@ -53,7 +51,7 @@ if __name__ == "__main__":
     print(res)
     print(gl[res])
     top1correct = gl[res].eq(ql).sum().item()
-    print("Acc top1: {:.3f}".format(top1correct/ql.size(0)))
+    print("Acc top1: {:.3f%}".format(100*top1correct/ql.size(0)))
 
     calculate_topk(qf, ql, gf, gl, 1)
     calculate_topk(qf, ql, gf, gl, 3)

@@ -1,6 +1,6 @@
 DEEPSORT:
-  REID_CKPT: "./deep_sort/deep/checkpoint/ckpt.t7"
-  NUM_CLASSES: 34
+  REID_CKPT: "./deep_sort/deep/checkpoint/distorn_aug.t7"
+  NUM_CLASSES: 43
   MAX_DIST: 0.2
   MIN_CONFIDENCE: 0.3
   NMS_MAX_OVERLAP: 0.5
@@ -9,4 +9,3 @@ DEEPSORT:
   N_INIT: 3
   NN_BUDGET: 100
   APPLY_PAD: False
-  

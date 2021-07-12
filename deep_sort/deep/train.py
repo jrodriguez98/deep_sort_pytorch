@@ -8,14 +8,14 @@ import torch
 import torch.backends.cudnn as cudnn
 import torchvision
 
-from original_model_sq import Net
+from model_sq import Net
 from evaluate import calculate_topk
 from test_model import process_loader
 from loader import CustomFolder
 
 parser = argparse.ArgumentParser(description="Train on market1501")
 parser.add_argument("--data-dir",default='data',type=str)
-parser.add_argument("--model-name",default='ckpt',type=str)
+parser.add_argument("--model-name", default='ckpt',type=str)
 parser.add_argument("--no-cuda",action="store_true")
 parser.add_argument("--gpu-id",default=0,type=int)
 parser.add_argument("--lr",default=0.1, type=float)
@@ -69,6 +69,12 @@ galleryloader = torch.utils.data.DataLoader(
     CustomFolder(gallery_dir, transform=transform_test),
     batch_size=64, shuffle=False
 )
+
+print(f"LENGTH TRAIN: {len(trainloader.dataset)}")
+print(f"LENGTH TEST: {len(testloader.dataset)}")
+print(f"LENGTH QUERY: {len(queryloader.dataset)}")
+print(f"LENGTH GALLERY: {len(galleryloader.dataset)}")
+
 
 num_classes = max(len(trainloader.dataset.classes), len(testloader.dataset.classes))
 print(f"Num classes: {num_classes}")
@@ -256,7 +262,7 @@ def lr_decay():
 def main():
 
     top1_acc, test_err = test_topk(0)
-    for epoch in range(start_epoch, start_epoch+40):
+    for epoch in range(start_epoch, start_epoch+25):
         train_loss, train_err, train_acc = train(epoch)
         #test_loss, test_err = test(epoch)
         top1_acc, test_err = test_topk(epoch)

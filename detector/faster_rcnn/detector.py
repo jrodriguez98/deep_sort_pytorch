@@ -28,7 +28,7 @@ def load_model_in_gpu(IAModel):
     if gpus:
         try:
             tf.config.experimental.set_virtual_device_configuration(gpus[0], [
-                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=2048)])
+                tf.config.experimental.VirtualDeviceConfiguration(memory_limit=6144)])
         except RuntimeError as e:
             print(e)
 

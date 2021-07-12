@@ -8,8 +8,8 @@ import PIL
 from .model_sq import Net
 
 class Extractor(object):
-    def __init__(self, model_path, apply_pad=False, use_cuda=True):
-        self.net = Net(reid=True)
+    def __init__(self, model_path, num_classes=34, apply_pad=False, use_cuda=True):
+        self.net = Net(num_classes=num_classes, reid=True)
         self.device = "cuda" if torch.cuda.is_available() and use_cuda else "cpu"
         state_dict = torch.load(model_path, map_location=lambda storage, loc: storage)['net_dict']
         self.net.load_state_dict(state_dict)
@@ -22,14 +22,14 @@ class Extractor(object):
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ])
 
-        self.pad = apply_pad
+        self.apply_pad = apply_pad
 
     def _resize_and_pad(self, image, size):
-        old_size = image.size
-
+        old_size = image.shape[:2]
         ratio = float(size) / max(old_size)
         new_size = tuple([int(x * ratio) for x in old_size])
 
+        image = PIL.Image.fromarray(image)
         im = image.resize(new_size, PIL.Image.ANTIALIAS)
 
         new_im = PIL.Image.new("RGB", (size, size))
@@ -50,8 +50,8 @@ class Extractor(object):
         def _resize(im, size):
             return cv2.resize(im.astype(np.float32)/255., size)
 
-        if self.pad:
-            images_pre = [self.norm(self._resize_and_pad(im, self.size)).unsqueeze(0) for im in im_crops]
+        if self.apply_pad:
+            images_pre = [self.norm(self._resize_and_pad(im, self.size[0])).unsqueeze(0) for im in im_crops]
         else:
             images_pre = [self.norm(_resize(im, self.size)).unsqueeze(0) for im in im_crops]
 
